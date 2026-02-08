@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Electricity Theft Monitor · Neon Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg-base: #020617;
+    --card-bg: rgba(15,23,42,0.96);
+    --accent: #22c55e;
+    --accent-soft: rgba(34,197,94,0.16);
+    --accent-strong: rgba(22,163,74,0.9);
+    --info: #38bdf8;
+    --info-soft: rgba(56,189,248,0.18);
+    --danger: #f97373;
+    --danger-soft: rgba(248,113,113,0.18);
+    --text-main: #e5e7eb;
+    --text-muted: #9ca3af;
+    --border-subtle: rgba(148,163,184,0.4);
+    --shadow-deep: 0 22px 60px rgba(0,0,0,0.75);
+    --radius-card: 18px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  body { min-height:100vh; color:var(--text-main); background:radial-gradient(circle at top, #0f172a 0, #020617 55%) fixed; position:relative; overflow-x:hidden; }
+
+  .neon-orb { position:fixed; width:280px; height:280px; border-radius:999px; filter:blur(70px); opacity:0.85; mix-blend-mode:screen; z-index:-1; pointer-events:none; }
+  .neon-orb.green { background: radial-gradient(circle, rgba(22,163,74,0.8), transparent 60%); top:-40px; right:4%; animation: floatOrb 14s ease-in-out infinite alternate; }
+  .neon-orb.blue { background: radial-gradient(circle, rgba(56,189,248,0.85), transparent 60%); bottom:-60px; left:-40px; animation: floatOrb 18s ease-in-out infinite alternate-reverse; }
+  @keyframes floatOrb { 0% {transform: translate3d(0,0,0);} 100% {transform: translate3d(40px,-30px,0);} }
+
+  .app-shell { max-width:1240px; margin:0 auto; padding:16px; position:relative; z-index:1; }
+  .app-header { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:10px 14px 12px; border-radius:18px; background: linear-gradient(135deg, rgba(15,23,42,0.92), rgba(15,23,42,0.98)); border:1px solid rgba(148,163,184,0.4); box-shadow:var(--shadow-deep); backdrop-filter: blur(18px); position:relative; overflow:hidden; }
+  .header-title h1 { font-size:1.25rem; letter-spacing:0.22em; text-transform:uppercase; text-shadow:0 0 12px rgba(56,189,248,0.7); }
+  .header-title p { font-size:0.78rem; color:var(--text-muted); margin-top:4px; }
+
+  main { margin-top:14px; display:grid; grid-template-columns:2.3fr 1.1fr; gap:14px; }
+  @media (max-width:900px){ main { grid-template-columns:1fr; } }
+
+  .card, .panel { background: var(--card-bg); border-radius:var(--radius-card); border:1px solid var(--border-subtle); padding:12px; position:relative; overflow:hidden; box-shadow: var(--shadow-deep); }
+  .card-header, .panel-header { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; }
+
+  .metrics-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:4px; }
+  @media (max-width:780px){ .metrics-grid { grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:520px){ .metrics-grid { grid-template-columns:1fr; } }
+
+  .metric-card { border-radius:14px; padding:8px 9px; border:1px solid rgba(148,163,184,0.45); background: radial-gradient(circle at top left, rgba(15,23,42,0.96), rgba(15,23,42,0.98)); font-size:0.8rem; display:flex; flex-direction:column; gap:2px; position:relative; overflow:hidden; }
+  .metric-label { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-muted); }
+  .metric-value { font-size:1rem; font-weight:600; }
+  .chip { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; border:1px solid rgba(148,163,184,0.6); background: rgba(15,23,42,0.9); font-size:0.7rem; color: var(--text-muted); }
+  .chip-dot { width:8px; height:8px; border-radius:999px; background: radial-gradient(circle at 40% 30%, #93c5fd, #38bdf8); box-shadow:0 0 10px rgba(56,189,248,0.9); }
+
+  .status-pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; border:1px solid; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.14em; }
+  .status-normal { border-color: rgba(34,197,94,0.9); background: var(--accent-soft); color:#dcfce7; box-shadow:0 0 10px rgba(34,197,94,0.9); }
+  .status-theft { border-color: rgba(248,113,113,0.96); background: var(--danger-soft); color:#fee2e2; box-shadow:0 0 14px rgba(248,113,113,0.95); }
+  .status-dot { width:9px; height:9px; border-radius:999px; background: radial-gradient(circle at 40% 30%, #bbf7d0, #22c55e); }
+  .status-dot.danger { background: radial-gradient(circle at 40% 30%, #fecaca, #ef4444); }
+
+  .chart-section { margin-top:8px; border-radius:14px; border:1px solid rgba(148,163,184,0.45); background: radial-gradient(circle at top left, rgba(15,23,42,0.94), rgba(15,23,42,1)); padding:8px 9px; position:relative; overflow:hidden; }
+  .chart-header { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; font-size:0.76rem; color:var(--text-muted); }
+  .chart-wrap { height:230px; }
+
+  .alert-banner { margin-top:4px; padding:7px 8px; border-radius:12px; font-size:0.78rem; display:flex; align-items:center; gap:8px; }
+  .alert-banner.normal { border-color: rgba(34,197,94,0.9); background: radial-gradient(circle at top left, rgba(22,163,74,0.95), rgba(15,23,42,1)); color:#dcfce7; }
+  .alert-indicator { width:16px; height:16px; border-radius:999px; border:2px solid rgba(248,250,252,0.9); position:relative; }
+  .alert-indicator.ok::after { content:""; position:absolute; inset:3px; border-radius:inherit; background: radial-gradient(circle at 40% 30%, #bbf7d0, #22c55e); }
+</style>
+</head>
+<body>
+<div class="neon-orb green"></div>
+<div class="neon-orb blue"></div>
+
+<div class="app-shell">
+  <header class="app-header">
+    <div class="header-title">
+      <h1>Electricity Theft Monitor</h1>
+      <p>High‑fidelity real‑time metering · Dark neon control center</p>
+    </div>
+    <div class="header-meta">
+      <div class="pill"><div class="pill-dot"></div><span>Backend</span><span class="strong">Static Demo</span></div>
+      <div class="pill"><span>Refresh</span><span class="strong">2s live</span></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="card-header">
+        <div><h2>Meter Live Telemetry</h2></div>
+        <div id="status-pill" class="status-pill status-normal">
+          <span class="status-dot"></span>
+          <span id="status-text">NORMAL</span>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Meter ID</div>
+          <div class="metric-value" id="metric-meter">MTR001</div>
+          <div class="chip"><span class="chip-dot"></span><span id="metric-area">Area: Downtown</span></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Voltage</div>
+          <div class="metric-value" id="metric-voltage">231 V</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Current</div>
+          <div class="metric-value" id="metric-current">4.5 A</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Power</div>
+          <div class="metric-value" id="metric-power">1050 W</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Last Update</div>
+          <div class="metric-value" id="metric-time">12:34:56</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Device Status</div>
+          <div class="metric-value" id="metric-dev-status">OK</div>
+        </div>
+      </div>
+
+      <div class="chart-section">
+        <div class="chart-header"><span class="chart-title">Recent Power Usage</span></div>
+        <div class="chart-wrap"><canvas id="usageChart"></canvas></div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="panel-header"><h2>Theft Alerts</h2></div>
+      <div class="alert-banner normal" id="alert-banner">
+        <div class="alert-indicator ok" id="alert-indicator"></div>
+        <div id="alert-banner-text">No active theft detected.</div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+  // Chart.js mock data
+  const ctx = document.getElementById('usageChart').getContext('2d');
+  const usageChart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels: Array.from({length:20},(_,i)=>`T${i+1}`),
+      datasets:[{label:'Power (W)', data: Array.from({length:20},()=>Math.floor(500+Math.random()*1000)), borderColor:'#38bdf8', backgroundColor:'rgba(56,189,248,0.18)', tension:0.25, fill:true, pointRadius:0}]
+    },
+    options:{responsive:true, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(31,41,55,0.7)'}}}}
+  });
+
+  // Simulate status changes every 5s
+  setInterval(()=>{
+    const status = Math.random()<0.1?'THEFT':'NORMAL';
+    const pill = document.getElementById('status-pill');
+    const dot = pill.querySelector('.status-dot');
+    pill.classList.remove('status-normal','status-theft');
+    dot.classList.remove('danger');
+    pill.classList.add(status==='THEFT'?'status-theft':'status-normal');
+    if(status==='THEFT') dot.classList.add('danger');
+    document.getElementById('status-text').textContent=status;
+    document.getElementById('alert-banner-text').textContent=status==='THEFT'?'Active theft detected!':'No active theft detected.';
+  },5000);
+</script>
+</body>
+</html>
